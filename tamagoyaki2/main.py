@@ -182,11 +182,15 @@ def generate(
         # append
         dfs.append(df)
 
+    # save
     if len(dfs) == 0:
         logger.error("No data found.")
         return
+    
     ans = pd.concat(dfs)
-    ans.to_csv(f"{output_dir}/{symbol}.csv.gz", compression="gzip")
+    file_name = f"{output_dir}/{symbol}_{begin}_{end}_{interval}.csv.gz"
+    output_path = os.path.join(output_dir, file_name)
+    ans.to_csv(output_path, compression="gzip")
 
 
 @app.command()
@@ -215,6 +219,43 @@ def remove(
 
 
 @app.command()
+def tidy(
+    symbol: str = typer.Argument(help="The symbol to tidy"),
+    begin: str = typer.Argument(help="The begin date (YYYYMMDD)"),
+    end: str = typer.Argument(help="The end date (YYYYMMDD)"),
+) -> None:
+    """ tidy
+
+    Remove the data outside the specified date range.
+
+    """
+
+    logger.info('called tidy')
+
+    # validate the date format
+    try:
+        bdt = datetime.datetime.strptime(begin, "%Y%m%d")
+        edt = datetime.datetime.strptime(end, "%Y%m%d")
+    except ValueError:
+        err = "Invalid date format. Please use YYYYMMDD."
+        raise typer.BadParameter(err)
+
+    # main process
+    date_range = [bdt + datetime.timedelta(days=i) for i in range((edt - bdt).days + 1)]
+
+    for date in date_range:
+
+        # check if the data already exists
+        target = f"{WORKING_DIR}/candles/{symbol}/{date.strftime('%Y-%m-%d')}.csv.gz"
+        if not os.path.exists(target):
+            logger.error(f"{target} does not exist.")
+            continue
+
+        # remove the data
+        os.remove(target)
+
+
+@app.command()
 def inventory() -> None:
     """ inventory
 
@@ -231,6 +272,7 @@ def inventory() -> None:
 
         dates = [x.split(".")[0] for x in dates] # remove extension(.csv.gz)
         print(f'{symbol}: from {min(dates)} to {max(dates)}')
+
 
 if __name__ == "__main__":
     app()
