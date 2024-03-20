@@ -14,3 +14,8 @@ To check the symbols already stored
 ```
 $ python3 tamagoyaki/main.py inventory
 ```
+
+To check the log, monitor `$HOME/.tamagoyaki/log/app.log`
+```
+$ tail -f ~/.tamagoyaki/log/app.log
+```
