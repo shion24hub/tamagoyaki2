@@ -184,6 +184,31 @@ def generate(
 
 
 @app.command()
+def remove(
+    symbol: str = typer.Argument(help="The symbol to remove"),
+) -> None:
+    """ remove
+
+    Delete data stored by tamagoyaki
+
+    """
+
+    # confirm
+    y_or_n = input(f"Are you sure you want to delete {symbol}? [y/n]: ")
+    if y_or_n != "y":
+        logger.info("Canceled.")
+        return
+
+    # main process
+    target = f"{WORKING_DIR}/candles/{symbol}"
+    if os.path.exists(target):
+        os.system(f"rm -rf {target}")
+        logger.info(f"{target} has been removed.")
+    else:
+        logger.error(f"{target} does not exist.")
+
+
+@app.command()
 def inventory() -> None:
     """ inventory
 
@@ -200,7 +225,6 @@ def inventory() -> None:
 
         dates = [x.split(".")[0] for x in dates] # remove extension(.csv.gz)
         print(f'{symbol}: from {min(dates)} to {max(dates)}')
-
 
 if __name__ == "__main__":
     app()
