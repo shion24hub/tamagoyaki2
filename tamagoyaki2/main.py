@@ -64,12 +64,16 @@ def update(
         url = os.path.join(base_url, symbol, filename)
 
         # download
+        logger.info(f"Downloading {filename}")
+
         resp = requests.get(url)
         if resp.status_code != 200:
             logger.error(f"Failed to download {filename}")
             continue
         
         # data processing
+        logger.info(f"Processing {filename}")
+
         with gzip.open(BytesIO(resp.content), "rt") as f:
 
             df = pd.read_csv(f)
@@ -106,6 +110,8 @@ def update(
             )
 
             # save to data dir
+            logger.info(f"Saving {filename}")
+
             os.makedirs(f"{WORKING_DIR}/candles/{symbol}", exist_ok=True)
             df.to_csv(
                 f"{WORKING_DIR}/candles/{symbol}/{date.strftime('%Y-%m-%d')}.csv.gz",
