@@ -10,7 +10,7 @@ import requests
 import typer
 from loguru import logger
 
-# const
+# Working directory
 WORKING_DIR = f"{Path.home()}/.tamagoyaki"
 
 logger.remove()
