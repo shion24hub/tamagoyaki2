@@ -1,13 +1,9 @@
 import datetime
-import gzip
 import os
-from io import BytesIO
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import polars as pl
-import requests
 import typer
 from loguru import logger
 
@@ -61,6 +57,7 @@ def make_1s_candle(df: pd.DataFrame):
     )
 
     return df
+
 
 @app.callback(help="🍳 A CLI tool for managing the crypto candlestick data.")
 def callback() -> None:
@@ -121,6 +118,7 @@ def update(
         
         # data processing
         logger.info(f"Processing {filename}")
+        df.loc[:, ["datetime"]] = pd.to_datetime(df["timestamp"], unit="s")
         df = make_1s_candle(df)
 
         # save to data dir
@@ -149,12 +147,11 @@ def generate(
     except ValueError:
         err = "Invalid date format. Please use YYYYMMDD."
         raise typer.BadParameter(err)
-    
-
-    date_range = [bdt + datetime.timedelta(days=i) for i in range((edt - bdt).days + 1)]
 
     # main process
+    date_range = pd.date_range(bdt, edt, freq="D")
     dfs: list[pd.DataFrame] = [] # https://github.com/microsoft/pylance-release/issues/5630
+
     for date in date_range:
         
         # check if the data already exists
@@ -162,7 +159,8 @@ def generate(
         if not os.path.exists(target):
             logger.error(f"{target} does not exist.")
             continue
-
+        
+        # read the data and convert its type
         df = pd.read_csv(target)
         df["datetime"] = pd.to_datetime(df["datetime"])
         df["open"] = df["open"].astype(float)
@@ -173,6 +171,7 @@ def generate(
         df["buyVolume"] = df["buyVolume"].astype(float)
         df["sellVolume"] = df["sellVolume"].astype(float)
 
+        # re-structure the data
         df = df.set_index("datetime")
         df = df.resample(f"{interval}s").agg(
             {
@@ -199,6 +198,7 @@ def generate(
     file_name = f"{output_dir}/{symbol}_{begin}_{end}_{interval}.csv.gz"
     output_path = os.path.join(output_dir, file_name)
     ans.to_csv(output_path, compression="gzip")
+
 
 @app.command()
 def remove(
@@ -248,7 +248,7 @@ def tidy(
         raise typer.BadParameter(err)
 
     # main process
-    date_range = [bdt + datetime.timedelta(days=i) for i in range((edt - bdt).days + 1)]
+    date_range = pd.date_range(bdt, edt, freq="D")
 
     for date in date_range:
 
@@ -274,12 +274,21 @@ def inventory() -> None:
     # main process
     symbols = os.listdir(f"{WORKING_DIR}/candles")
     symbols = [x for x in symbols if not x.startswith(".")] # remove hidden files
-    for symbol in symbols:
-        dates = os.listdir(f"{WORKING_DIR}/candles/{symbol}")
-        dates = os.listdir(f"{WORKING_DIR}/candles/{symbol}")
 
+    for symbol in symbols:
+        
+        dates = os.listdir(f"{WORKING_DIR}/candles/{symbol}")
         dates = [x.split(".")[0] for x in dates] # remove extension(.csv.gz)
-        print(f'{symbol}: from {min(dates)} to {max(dates)}')
+        dates = [datetime.datetime.strptime(x, "%Y-%m-%d") for x in dates]
+
+        mindt = min(dates)
+        maxdt = max(dates)
+        missings = [x for x in pd.date_range(mindt, maxdt, freq="D") if x not in dates]
+
+        message = "{}: from {} to {}, {} missing dates".format(
+            symbol, mindt.strftime("%Y-%m-%d"), maxdt.strftime("%Y-%m-%d"), len(missings)
+        )
+        print(message)
 
 
 if __name__ == "__main__":

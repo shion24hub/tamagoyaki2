@@ -10,6 +10,16 @@ To save to csv file in the current directory
 $ python3 tamagoyaki/main.py generate BTCUSDT 20240101 20240103 60
 ``` 
 
+To delete symbol data that is no longer needed, specifying a date
+```
+$ python3 tamagoyaki/main.py tidy BTCUSDT 20240101 20240102
+```
+
+To delete symbol data that is no longer needed
+```
+$ python3 tamagoyaki/main.py remove BTCUSDT
+```
+
 To check the symbols already stored
 ```
 $ python3 tamagoyaki/main.py inventory
