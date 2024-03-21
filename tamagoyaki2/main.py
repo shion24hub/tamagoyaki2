@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
+from rich import print
 
 # Working directory
 WORKING_DIR = f"{Path.home()}/.tamagoyaki"
