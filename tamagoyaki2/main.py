@@ -3,10 +3,10 @@ import gzip
 import os
 from io import BytesIO
 from pathlib import Path
-import tempfile
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import requests
 import typer
 from loguru import logger
@@ -18,6 +18,49 @@ logger.remove()
 logger.add(f"{WORKING_DIR}/log/app.log", level="INFO", format="{time} {level} {message}")
 app = typer.Typer()
 
+
+def make_1s_candle(df: pd.DataFrame):
+    """
+    convert trading data to ohlcv data.
+    required columns of df: ['datetime', 'side', 'size', 'price']
+
+    df:
+    - datetime(pd.datetime64[ns]): timestamp of the trade
+    - side(str): 'Buy' or 'Sell'
+    - size(float): size of the trade
+    - price(float): price of the trade
+    """
+
+    df = df[["datetime", "side", "size", "price"]]
+
+    df.loc[:, ["buySize"]] = np.where(df["side"] == "Buy", df["size"], 0)
+    df.loc[:, ["sellSize"]] = np.where(df["side"] == "Sell", df["size"], 0)
+    df.loc[:, ["datetime"]] = df["datetime"].dt.floor("1s")
+
+    df = df.groupby("datetime").agg(
+        {
+            "price": ["first", "max", "min", "last"],
+            "size": "sum",
+            "buySize": "sum",
+            "sellSize": "sum",
+        }
+    )
+
+    # multiindex to single index
+    df.columns = ["_".join(col) for col in df.columns]
+    df = df.rename(
+        columns={
+            "price_first": "open",
+            "price_max": "high",
+            "price_min": "low",
+            "price_last": "close",
+            "size_sum": "volume",
+            "buySize_sum": "buyVolume",
+            "sellSize_sum": "sellVolume",
+        }
+    )
+
+    return df
 
 @app.callback(help="🍳 A CLI tool for managing the crypto candlestick data.")
 def callback() -> None:
@@ -47,9 +90,12 @@ def update(
     except ValueError:
         err = "Invalid date format. Please use YYYYMMDD."
         raise typer.BadParameter(err)
+
+    # make the directory
+    os.makedirs(f"{WORKING_DIR}/candles/{symbol}", exist_ok=True)
     
     # main process
-    date_range = [bdt + datetime.timedelta(days=i) for i in range((edt - bdt).days + 1)]
+    date_range = pd.date_range(bdt, edt, freq="D")
 
     for date in date_range:
 
@@ -66,58 +112,20 @@ def update(
 
         # download
         logger.info(f"Downloading {filename}")
-
-        resp = requests.get(url)
-        if resp.status_code != 200:
+        try:
+            df = pd.read_csv(url, compression="gzip")
+        except Exception as e:
             logger.error(f"Failed to download {filename}")
+            logger.error(e)
             continue
         
         # data processing
         logger.info(f"Processing {filename}")
+        df = make_1s_candle(df)
 
-        with gzip.open(BytesIO(resp.content), "rt") as f:
-
-            df = pd.read_csv(f)
-
-            # setting
-            df = df[["timestamp", "side", "size", "price"]]
-            df.loc[:, ["datetime"]] = pd.to_datetime(df["timestamp"], unit="s")
-            df.loc[:, ["buySize"]] = np.where(df["side"] == "Buy", df["size"], 0)
-            df.loc[:, ["sellSize"]] = np.where(df["side"] == "Sell", df["size"], 0)
-            df.loc[:, ["datetime"]] = df["datetime"].dt.floor("1s")
-
-            # groupby 
-            df = df.groupby("datetime").agg(
-                {
-                    "price": ["first", "max", "min", "last"],
-                    "size": "sum",
-                    "buySize": "sum",
-                    "sellSize": "sum",
-                }
-            )
-
-            # multiindex to single index
-            df.columns = ["_".join(col) for col in df.columns]
-            df = df.rename(
-                columns={
-                    "price_first": "open",
-                    "price_max": "high",
-                    "price_min": "low",
-                    "price_last": "close",
-                    "size_sum": "volume",
-                    "buySize_sum": "buyVolume",
-                    "sellSize_sum": "sellVolume",
-                }
-            )
-
-            # save to data dir
-            logger.info(f"Saving {filename}")
-
-            os.makedirs(f"{WORKING_DIR}/candles/{symbol}", exist_ok=True)
-            df.to_csv(
-                f"{WORKING_DIR}/candles/{symbol}/{date.strftime('%Y-%m-%d')}.csv.gz",
-                compression="gzip",
-            )
+        # save to data dir
+        logger.info(f"Saving {filename}")
+        df.to_csv(target, compression="gzip")
 
 
 @app.command()
