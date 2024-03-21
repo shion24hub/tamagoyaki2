@@ -3,6 +3,7 @@ import gzip
 import os
 from io import BytesIO
 from pathlib import Path
+import tempfile
 
 import numpy as np
 import pandas as pd
@@ -145,7 +146,7 @@ def generate(
     date_range = [bdt + datetime.timedelta(days=i) for i in range((edt - bdt).days + 1)]
 
     # main process
-    dfs = []
+    dfs: list[pd.DataFrame] = [] # https://github.com/microsoft/pylance-release/issues/5630
     for date in date_range:
         
         # check if the data already exists
@@ -178,20 +179,18 @@ def generate(
         )
 
         df = df.dropna()
-
-        # append
         dfs.append(df)
 
     # save
     if len(dfs) == 0:
         logger.error("No data found.")
+        print(f"No data found.")
         return
     
     ans = pd.concat(dfs)
     file_name = f"{output_dir}/{symbol}_{begin}_{end}_{interval}.csv.gz"
     output_path = os.path.join(output_dir, file_name)
     ans.to_csv(output_path, compression="gzip")
-
 
 @app.command()
 def remove(
@@ -253,6 +252,7 @@ def tidy(
 
         # remove the data
         os.remove(target)
+        logger.info(f"{target} has been removed.")
 
 
 @app.command()
