@@ -291,6 +291,27 @@ def inventory() -> None:
         )
         print(message)
 
+@app.command()
+def info() -> None:
+    """ info
+
+    show the working directory information.
+    - path of the working directory
+    - size of the working directory
+
+    """
+
+    print(f"Working directory: {WORKING_DIR}")
+    
+    # get the size of the working directory
+    total_size = 0
+    for dirpath, _, filenames in os.walk(WORKING_DIR):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            total_size += os.path.getsize(fp)
+    
+    print(f"Size: {total_size / 1024 / 1024:.2f} MB")
+    
 
 if __name__ == "__main__":
     app()
