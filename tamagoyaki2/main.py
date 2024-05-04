@@ -196,7 +196,7 @@ def generate(
         return
     
     ans = pd.concat(dfs)
-    file_name = f"{output_dir}/{symbol}_{begin}_{end}_{interval}.csv.gz"
+    file_name = f"{symbol}_{begin}_{end}_{interval}.csv.gz"
     output_path = os.path.join(output_dir, file_name)
     ans.to_csv(output_path, compression="gzip")
 
